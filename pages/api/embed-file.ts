@@ -1,50 +1,54 @@
-import type { NextApiRequest, NextApiResponse, PageConfig } from "next"
-import { OpenAIEmbeddings } from "langchain/embeddings"
-import { PineconeStore } from "langchain/vectorstores"
-import { initPinecone } from "@/config/pinecone"
-import { getFileText, splitDocumentsFromFile } from "@/lib/file"
+// pages/leaderboard.js
 
-if (
-  !process.env.PINECONE_ENVIRONMENT ||
-  !process.env.PINECONE_API_KEY ||
-  !process.env.PINECONE_INDEX_NAME
-) {
-  throw new Error("Pinecone environment or api key vars missing")
+import { useEffect, useState } from 'react';
+
+export default function Leaderboard() {
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchLeaderboard() {
+      const res = await fetch('/api/leaderboard');
+      const json = await res.json();
+      setData(json);
+      setLoading(false);
+    }
+    fetchLeaderboard();
+  }, []);
+
+  return (
+    <div style={{ padding: '2rem', fontFamily: 'Arial' }}>
+      <h1>Kaito Yaps Leaderboard 📊</h1>
+
+      {loading ? (
+        <p>Loading leaderboard...</p>
+      ) : (
+        <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '1rem' }}>
+          <thead>
+            <tr style={{ background: '#f2f2f2' }}>
+              <th style={th}>Token</th>
+              <th style={th}>Total Yaps</th>
+              <th style={th}>Bullish %</th>
+              <th style={th}>Last Yap</th>
+              <th style={th}>Badge</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.map((item, i) => (
+              <tr key={i} style={{ textAlign: 'center', borderBottom: '1px solid #ccc' }}>
+                <td style={td}>${item.token.toUpperCase()}</td>
+                <td style={td}>{item.total_yaps}</td>
+                <td style={td}>{item.bullish_percent}%</td>
+                <td style={td}>{new Date(item.last_yap).toLocaleString()}</td>
+                <td style={td}>{item.badge}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
 }
 
-export async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const { namespace } = req.headers
-  const namespaceConfig = !!namespace ? namespace : "default-namespace"
-
-  try {
-    // parse file -> text -> Document chunk & metadata -> store in Pinecone Namespace
-    const fileText = await getFileText(req)
-    const docs = await splitDocumentsFromFile(fileText)
-
-    await storeDocumentsInPinecone(docs, namespaceConfig)
-    res.status(200).json({ message: "Success" })
-  } catch (error) {
-    console.log("error", error)
-    throw new Error("Failed to ingest your data")
-  }
-}
-
-async function storeDocumentsInPinecone(docs: any, namespace) {
-  const pinecone = await initPinecone()
-  const embeddings = new OpenAIEmbeddings()
-  const index = pinecone.Index(process.env.PINECONE_INDEX_NAME)
-
-  await PineconeStore.fromDocuments(docs, embeddings, {
-    pineconeIndex: index,
-    namespace,
-    textKey: "text",
-  })
-}
-
-export const config: PageConfig = {
-  api: {
-    bodyParser: false,
-  },
-}
-
-export default handler
+const th = { padding: '10px', border: '1px solid #ddd' };
+const td = { padding: '8px' };
